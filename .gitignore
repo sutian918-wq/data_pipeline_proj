@@ -1,0 +1,39 @@
+# Python
+venv/
+env/
+ENV/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.log
+logs/
+
+# Docker
+mysql_data/
+kafka_data/
+*.pid
+docker-compose.override.yml
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Mac
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
