@@ -19,11 +19,11 @@ def delivery_report(err, msg):
 # Kafka setup
 conf = {
     'bootstrap.servers': 'localhost:9092', 
-    'queue.buffering.max.kbytes': 32768, # 32 MB
-    'batch.size': 16384, # 16 KB, larger means fewer network requests
-    'linger.ms': 10, # max time producer will wait before sending a batch of messages
+    'queue.buffering.max.kbytes': 32768, # 32 MB max buffer size
+    'batch.size': 16384, # 16 KB max per batch, larger means fewer network requests
+    'linger.ms': 10, # the max time producer will wait before sending a batch of messages
     'compression.type': 'lz4', # save bandwidth and improve throughput
-    'on_delivery': delivery_report,
+    'on_delivery': delivery_report, 
 }
 
 producer = Producer(conf)
