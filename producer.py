@@ -9,29 +9,32 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Load environment variables from .env
 load_dotenv()
 
+# constants
+TOPIC = os.getenv("TOPIC_NAME", 'market_data')
+MAX_WORKERS = int(os.getenv("PRODUCER_THREADS",4))
+
 # log every delivery for debug
 def delivery_report(err, msg):
     if err is not None:
         print(f'Message delivery failed: {err}')
     else:
-        print(f'Message delivered to {msg.topic()} [{msg.partition()}]')
+        print(f'Message {msg.value().decode("utf-8")} delivered to {msg.topic()} [{msg.partition()}]')
 
-# Kafka setup
+# Producer configuration
 conf = {
     'bootstrap.servers': 'localhost:9092', 
     'queue.buffering.max.kbytes': 32768, # 32 MB max buffer size
     'batch.size': 16384, # 16 KB max per batch, larger means fewer network requests
     'linger.ms': 10, # the max time producer will wait before sending a batch of messages
     'compression.type': 'lz4', # save bandwidth and improve throughput
-    'on_delivery': delivery_report, 
+    'on_delivery': delivery_report,
 }
 
 producer = Producer(conf)
 
-tickers = ['AAPL', 'GOOGL', 'MSFT', 'TSLA']
+tickers = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN', 'META', 'NVDA', 'NFLX', 'INTC', 'AMD']
 
 # sending logic
-TOPIC = os.getenv("TOPIC_NAME", 'market_data')
 def send_tick(ticker):
     # simulate stock data
     data = {
@@ -42,14 +45,13 @@ def send_tick(ticker):
     # Send to Kafka topic 'market_data'
     producer.produce(TOPIC, json.dumps(data))
 
-MAX_WORKERS = int(os.getenv("PRODUCER_THREADS",4))
 
 # spin up 4 threads, one for each ticker
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
     # submit all tasks
-    future_to_ticker = { executor.submit(send_tick, t): t for t in tickers}
+    future_to_ticker = { executor.submit(send_tick, t): t for t in tickers }
 
-    # wait for all to finish and handle errors
+    # process each completed future as it finishes
     for future in as_completed(future_to_ticker):
         ticker = future_to_ticker[future]
         try:
@@ -59,9 +61,4 @@ with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
 
 # flush all messages to Kafka
 producer.flush()
-
     
-        
-    
-
-
