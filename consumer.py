@@ -1,16 +1,24 @@
-from confluent_kafka import Consumer, KafkaError, KafkaException
 import os
 import time
 from dotenv import load_dotenv 
+from confluent_kafka import Consumer, KafkaError, KafkaException
 
+# load environment variables from .env
 load_dotenv()
 
+# constants
+TOPIC_NAME = os.getenv("TOPIC_NAME", 'market_data')
+BATCH_SIZE = 1
+COMMIT_INTERVAL_SECONDS = 5
+
+# log commit results for debug
 def commit_completed(err, partitions):
     if err:
         print(f"Commit failed: {err}")
     else:
         print(f"Committed: {partitions}")
 
+# consumer configuration
 conf = {
     'bootstrap.servers': 'localhost:9092',
     'group.id': 'processors',
@@ -21,24 +29,23 @@ conf = {
 
 consumer = Consumer(conf)
 
-TOPIC_NAME = os.getenv("TOPIC_NAME", 'market_data')
 consumer.subscribe([TOPIC_NAME])
-
-running = True
-msg_count = 0
-last_commit_time = time.time()
-COMMIT_INTERVAL_SECONDS = 5
-BATCH_SIZE = 100
 
 # process message
 def process_tick(msg):
     print(f'Received message: {msg.value().decode("utf-8")}')
 
+running = True
+msg_count = 0
+last_commit_time = time.time()
 try: 
     while running:
         msg = consumer.poll(timeout=1.0)
-        if msg is None:
-            continue
+
+        if msg is None: 
+            # no message received, continue polling
+            continue 
+
         if msg.error():
             if msg.error().code() == KafkaError._PARTITION_EOF:
                 # reached end of partition, continue
@@ -59,10 +66,20 @@ try:
 
 except KeyboardInterrupt:
     print("Shutting down...")
+
 finally:
     # Commit any remaining messages and clean up
     print("Final commit...")
-    consumer.commit(asynchronous=False)
+    
+    if msg_count > 0:
+        try:
+            consumer.commit(asynchronous=False)
+            print("Final commit successful")
+        except Exception as e:
+            print(f"Final commit failed: {e}")
+    else: 
+        print("No messages to commit.")
+
     consumer.close()
     print("Consumer closed.")
 
