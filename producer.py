@@ -42,9 +42,10 @@ def send_tick(ticker):
         "price": round(random.uniform(100,500),2),
         "timestamp": time.time()
     }
-    # Send to Kafka topic 'market_data'
-    producer.produce(TOPIC, json.dumps(data))
-
+    # Send to Kafka topic 'market_data' in a continuous loop with a random delay
+    while True:
+        time.sleep(random.uniform(0.2,1.0))
+        producer.produce(TOPIC, json.dumps(data))
 
 # spin up 4 threads, one for each ticker
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
