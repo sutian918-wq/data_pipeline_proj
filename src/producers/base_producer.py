@@ -23,7 +23,7 @@ class BaseProducer(ABC):
     DEFAULT_SHUTDOWN_TIMEOUT: float = 5.0  # seconds to wait for threads to finish
     DEFAULT_POLL_INTERVAL: float = 1.0     # seconds between stop event checks
 
-    def __init__(self, fetcher: 'Fetcher', tickers: list[str], num_threads: int, config: dict | None):
+    def __init__(self, fetcher: 'Fetcher', tickers: list[str], num_threads: int, config: dict | None = None):
         """
         Initialise the producer.
         Args:
@@ -38,7 +38,7 @@ class BaseProducer(ABC):
         self.config = config or {}
         # threading control
         self.stop_event = Event()
-        self.executor: ThreadPoolExecutor | None
+        self.executor: ThreadPoolExecutor | None = None
 
         logger.info(
             f"Initialised {self.__class__.__name__} with {len(tickers)} tickers "

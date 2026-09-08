@@ -1,16 +1,15 @@
 from src.config import settings
-from src.fetchers import Fetcher, SimulatedFetcher
+from src.fetchers import Fetcher
 from confluent_kafka import Producer
-from base_producer import BaseProducer
+from src.producers import BaseProducer
 import logging
 import json
 import time
-import random
 
 logger = logging.getLogger(__name__)
 
 class KafkaProducer(BaseProducer):
-    def __init__(self, fetcher: 'Fetcher', tickers: list[str], num_threads: int, config: dict | None):
+    def __init__(self, fetcher: 'Fetcher', tickers: list[str], num_threads: int, config: dict | None = None):
         super().__init__(fetcher, tickers, num_threads, config)
         kafka_conf = {
             'bootstrap.servers': settings.kafka_bootstrap_servers, 
@@ -41,7 +40,7 @@ class KafkaProducer(BaseProducer):
                     data = self.fetcher.fetch(ticker)
                     message = json.dumps(data).encode('utf-8')
                     self.producer.produce(
-                        topic=self.topic_name, 
+                        topic=self.topic, 
                         value=message,
                         key=ticker.encode('utf-8')
                     )
@@ -77,3 +76,20 @@ class KafkaProducer(BaseProducer):
                     f"Delivered {self.message_count} messages. "
                     f"Last: {msg.topic()} [{msg.partition()}] @ {msg.offset()}"
                 )
+
+    def _cleanup(self) -> None:
+        logger.info("Flushing producer...")
+        try:
+            remaining = self.producer.flush()
+            if remaining > 0:
+                logger.warning(f"Flush completed with {remaining} messages remained")
+            else:
+                logger.info(f"Flush completed successfully.")
+        except Exception as e:
+            logger.error(f"Error during flush: {e}")
+
+        logger.info(
+            f"Final stats: {self.message_count} messages delivered, "
+            f"{self.error_count} errors"
+        )
+
