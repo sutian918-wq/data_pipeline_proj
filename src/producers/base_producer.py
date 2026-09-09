@@ -39,6 +39,7 @@ class BaseProducer(ABC):
         # threading control
         self.stop_event = Event()
         self.executor: ThreadPoolExecutor | None = None
+        self._stopped = False
 
         logger.info(
             f"Initialised {self.__class__.__name__} with {len(tickers)} tickers "
@@ -53,12 +54,25 @@ class BaseProducer(ABC):
         """
         if num_threads <= 0:
             return [tickers]
+
+        if len(tickers) == 0:
+            return []
         
-        chunk_size = max (1, len(tickers) // num_threads)
-        return [tickers[i:i+chunk_size] for i in range(0, len(tickers), chunk_size)]
+        chunk_size = len(tickers) // num_threads
+        remainder = len(tickers) % num_threads
+
+        chunks = []
+        start = 0
+        for i in range(num_threads):
+            extra = 1 if i < remainder else 0
+            end = chunk_size + start + extra
+            chunks.append(tickers[start:end])
+            start = end
+            
+        return chunks
 
     @abstractmethod
-    def _worker(self, chunk: list[str]):
+    def _worker(self, chunk: list[str]) -> None:
         """
         Worker method for each thread.
         
@@ -92,8 +106,13 @@ class BaseProducer(ABC):
             logger.debug("Executor shut down successfully")
         except Exception as e:
             logger.error(f"Error shutting down executor: {e}")
+        finally:
+            self.executor = None
 
     def start(self) -> None:
+        """
+        Start the producer by creating a thread pool and submitting worker tasks.
+        """
         if self.executor is not None:
             logger.warning("Producer already started")
             return
@@ -108,11 +127,11 @@ class BaseProducer(ABC):
         self.executor = ThreadPoolExecutor(max_workers=self.num_threads) 
         for chunk in non_empty_chunks:
             future = self.executor.submit(self._worker, chunk) 
-            # Add exception handling for the future (optional)
+            # Add exception handling for the future 
             future.add_done_callback(self._handle_worker_done)
 
         logger.info(
-            f"Started {len(non_empty_chunks)} worker threads"
+            f"Started {len(non_empty_chunks)} worker threads "
             f"for {len(self.tickers)} tickers"
         )
 
@@ -129,6 +148,10 @@ class BaseProducer(ABC):
             # Optionally, implement a restart mechanism here
 
     def stop(self) -> None:
+        if self._stopped:
+            return
+        self._stopped = True
+
         if self.executor is None:
             logger.debug("No executor to stop")
             self._cleanup()

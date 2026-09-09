@@ -2,6 +2,8 @@ services:
   kafka:
     image: apache/kafka:latest
     platform: linux/arm64
+    hostname: data-pipeline-kafka
+    container_name: data-pipeline-kafka
     ports:
       - "9092:9092"
       - "9093:9093"

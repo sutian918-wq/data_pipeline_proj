@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 def main():
     logger.info("Start running producer")
+    
+    # Initialise fetcher based on settings
     try:
         match settings.fetcher_type:
             case 'simulated':
