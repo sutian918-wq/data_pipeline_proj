@@ -39,7 +39,7 @@ class BaseProducer(ABC):
         # threading control
         self.stop_event = Event()
         self.executor: ThreadPoolExecutor | None = None
-        self._stopped = False
+        self._cleaned_up = False
 
         logger.info(
             f"Initialised {self.__class__.__name__} with {len(tickers)} tickers "
@@ -49,7 +49,7 @@ class BaseProducer(ABC):
     def _chunk_tickers(self, tickers: list[str], num_threads: int) -> list[list[str]]:
         """
         Split tickers into roughly equal chunks.
-        
+
         Example: 10 tickers, 4 threads → chunks of size 3,3,2,2
         """
         if num_threads <= 0:
@@ -57,18 +57,20 @@ class BaseProducer(ABC):
 
         if len(tickers) == 0:
             return []
-        
+
+        # Base chunk size
         chunk_size = len(tickers) // num_threads
         remainder = len(tickers) % num_threads
 
         chunks = []
         start = 0
         for i in range(num_threads):
+            # First `remainder` chunks get one extra ticker
             extra = 1 if i < remainder else 0
-            end = chunk_size + start + extra
+            end = start + chunk_size + extra
             chunks.append(tickers[start:end])
             start = end
-            
+
         return chunks
 
     @abstractmethod
@@ -103,6 +105,7 @@ class BaseProducer(ABC):
 
         try:
             self.executor.shutdown(wait=True)
+            self.executor = None
             logger.debug("Executor shut down successfully")
         except Exception as e:
             logger.error(f"Error shutting down executor: {e}")
@@ -148,13 +151,14 @@ class BaseProducer(ABC):
             # Optionally, implement a restart mechanism here
 
     def stop(self) -> None:
-        if self._stopped:
+        if self._cleaned_up:
+            logger.debug("Producer already stopped - skipping cleanup")
             return
-        self._stopped = True
 
         if self.executor is None:
             logger.debug("No executor to stop")
             self._cleanup()
+            self._cleaned_up = True
             return
 
         logger.info("Stopping producer...")
@@ -165,6 +169,7 @@ class BaseProducer(ABC):
 
         # Perform any additional cleanup
         self._cleanup()
+        self._cleaned_up = True
 
         logger.info("Producer stopped")
 

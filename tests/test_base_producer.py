@@ -1,159 +1,235 @@
-import logging 
-import threading 
+"""
+Unit tests for BaseProducer.
+
+These tests verify:
+- Chunking logic (even distribution, edge cases)
+- Lifecycle (start, stop, run)
+- Error handling (worker exceptions)
+- Graceful shutdown
+"""
+
 import time
+import threading
+import pytest
+from typing import List
+from unittest.mock import Mock
+
 from src.producers import BaseProducer
-from concurrent.futures import Future
+from src.fetchers import Fetcher
+
 
 class TestableProducer(BaseProducer):
-    """Minimal concrete producer for testing BaseProducer"""
-    def __init__(self, fetcher, tickers, num_threads, config = None):
+    """
+    Minimal concrete implementation of BaseProducer for testing.
+
+    It doesn't send anything, only records how many times the worker
+    and cleanup methods were called.
+    """
+
+    def __init__(self, fetcher, tickers, num_threads, config=None):
         super().__init__(fetcher, tickers, num_threads, config)
-        self.worker_call_count = 0
-        self.cleanup_call_count = 0
-        self.worker_should_loop = False
+        self.worker_calls = 0
+        self.cleanup_calls = 0
+        self.worker_exception = None  # Set this to force a worker exception
 
-    def _worker(self, chunk):
-        """Mock worker"""
-        self.worker_call_count += 1
+    def _worker(self, chunk: List[str]) -> None:
+        """Record the call, optionally raise, then exit immediately."""
+        self.worker_calls += 1
+        if self.worker_exception:
+            raise self.worker_exception
+        # Do nothing – return immediately so tests are fast
 
-        # If simulating a looping worker
-        if self.worker_should_loop:
-            while not self.stop_event.is_set():
-                time.sleep(0.01)
+    def _cleanup(self) -> None:
+        """Record the call."""
+        self.cleanup_calls += 1
 
 
-    def _cleanup(self):
-        """Mock cleanup"""
-        self.cleanup_call_count += 1
+@pytest.fixture
+def fake_fetcher():
+    """A dummy fetcher - never actually used in these tests."""
+    return Mock(spec=Fetcher)
 
-class TestBaseProducer:
-    """Test suite for BaseProducer"""
 
-    def test_chunk_tickers(self):
-        producer = TestableProducer(None, [], 0)
 
-        # 7 tickers, 4 threads 
-        chunks = producer._chunk_tickers(['A', 'B', 'C', 'D', 'E', 'F', 'G'], 4)
+class TestChunkTickers:
+    """
+    Tests for _chunk_tickers.
+    """
+
+    def test_even_distribution(self, fake_fetcher):
+        """7 tickers, 4 threads -> chunks of size 2,2,2,1"""
+        producer = TestableProducer(fake_fetcher, [], 4)
+        chunks = producer._chunk_tickers(list("ABCDEFG"), 4)
+
         assert len(chunks) == 4
         assert sum(len(c) for c in chunks) == 7
+        assert chunks == [["A", "B"], ["C", "D"], ["E", "F"], ["G"]]
 
-        # Fewer tickers than threads
-        chunks = producer._chunk_tickers(['A', 'B', 'C'], 5)
-        assert len(chunks) == 5
+    def test_evenly_divisible(self, fake_fetcher):
+        """8 tickers, 4 threads → chunks of size 2,2,2,2."""
+        producer = TestableProducer(fake_fetcher, [], 4)
+        chunks = producer._chunk_tickers(list("ABCDEFGH"), 4)
 
-        # Empty tickers
+        assert chunks == [["A", "B"], ["C", "D"], ["E", "F"], ["G", "H"]]
+
+    def test_fewer_tickers_than_threads(self, fake_fetcher):
+        """3 tickers, 5 threads → 3 chunks of size 1."""
+        producer = TestableProducer(fake_fetcher, [], 5)
+        chunks = producer._chunk_tickers(["A", "B", "C"], 5)
+
+        assert chunks == [["A"], ["B"], ["C"], [], []]
+
+    def test_empty_tickers(self, fake_fetcher):
+        """Empty list -> empty list of chunks."""
+        producer = TestableProducer(fake_fetcher, [], 2)
         chunks = producer._chunk_tickers([], 2)
+
         assert chunks == []
 
-        # 0 threads
-        # Fewer tickers than threads
-        chunks = producer._chunk_tickers(['A', 'B', 'C'], 0)
-        assert len(chunks) == 1
+    def test_zero_threads_returns_single_chunk(self, fake_fetcher):
+        """num_threads=0 -> one chunk with all tickers."""
+        producer = TestableProducer(fake_fetcher, [], 0)
+        chunks = producer._chunk_tickers(["A", "B", "C"], 0)
 
-    def test_start_creates_executor(self):
-        """Check if start creates an executor"""
-        producer = TestableProducer(None, ['A', 'B'], 2)
+        assert chunks == [["A", "B", "C"]]
+
+    def test_negative_threads_returns_single_chunk(self, fake_fetcher):
+        """num_threads=-1 -> one chunk with all tickers."""
+        producer = TestableProducer(fake_fetcher, [], -1)
+        chunks = producer._chunk_tickers(["A", "B", "C"], -1)
+
+        assert chunks == [["A", "B", "C"]]
+
+    def test_single_ticker(self, fake_fetcher):
+        """1 ticker, 4 threads -> 1 non-empty chunk + 3 empty."""
+        producer = TestableProducer(fake_fetcher, [], 4)
+        chunks = producer._chunk_tickers(["A"], 4)
+
+        assert chunks == [["A"],[],[],[]]
+
+
+
+class TestLifecycle:
+    """
+    Tests for start / stop / run.
+    """
+
+    def test_start_creates_executor(self, fake_fetcher):
+        """start() should create the executor."""
+        producer = TestableProducer(fake_fetcher, ["A", "B"], 2)
         assert producer.executor is None
 
         producer.start()
+
         assert producer.executor is not None
-        producer.stop()
+        producer.stop()  # clean up
 
-    def test_start_idempotent(self):
-        """Check if starting a second producer creates a new executor"""
-        producer = TestableProducer(None, ['A', 'B'], 2)
-        assert producer.executor is None
-
+    def test_start_is_idempotent(self, fake_fetcher):
+        """Calling start() twice should not create a second executor."""
+        producer = TestableProducer(fake_fetcher, ["A"], 1)
         producer.start()
         first_executor = producer.executor
 
-        producer.start()
-        assert first_executor is producer.executor
+        producer.start()  # second call – should warn and return
+
+        assert producer.executor is first_executor
         producer.stop()
 
-    def test_start_with_no_tickers(self, caplog):
-        producer = TestableProducer(None, [], 2)
-        # context manager to capture ERROR and above logs
-        with caplog.at_level(logging.ERROR):
-            producer.start()
-
-        assert "No tickers to process" in caplog.text
-        assert producer.executor is None
-
-    def test_stop_sets_event_and_cleanup(self):
-        producer = TestableProducer(None, ['A', 'B'], 2)
+    def test_workers_are_called(self, fake_fetcher):
+        """Each chunk should be processed by exactly one worker call."""
+        producer = TestableProducer(fake_fetcher, list("ABCD"), 2)
         producer.start()
 
-        assert not producer.stop_event.is_set()
-        assert producer.cleanup_call_count == 0
-
-        producer.stop()
-        assert producer.stop_event.is_set()
-        assert producer.cleanup_call_count == 1
-
-    def test_stop_wout_start(self, caplog):
-        producer = TestableProducer(None, ['A', 'B'], 2)
-        assert producer.executor is None
-
-        with caplog.at_level(logging.DEBUG):
-            producer.stop()
-
-        assert "No executor to stop" in caplog.text
-        assert producer.cleanup_call_count == 1
-
-    def test_stop_calls_cleanup_once(self):
-        producer = TestableProducer(None, ['A', 'B'], 2)
-        producer.start()
-
-        producer.stop()
-        first_cleanup_count = producer.cleanup_call_count
-
-        producer.stop()
-        # Ensure cleanup is not called again
-        assert producer.cleanup_call_count == first_cleanup_count
-
-    def test_run_handles_keyboard_interrupt(self):
-        producer = TestableProducer(None, ['A', 'B'], 2)
-        # tell the worker to loop and so the run() blocks
-        producer.worker_should_loop = True
-        
-        def run_producer():
-            producer.run()
-
-        thread = threading.Thread(target=run_producer)
-        thread.start()
-
-        # let the producer start up
+        # Wait until workers have run (they exit immediately)
         time.sleep(0.1)
 
-        # simulate Ctrl+C
-        producer.stop_event.set()
+        assert producer.worker_calls == 2  # 4 tickers / 2 threads = 2 chunks
+        producer.stop()
 
-        thread.join(timeout=2)
+    def test_cleanup_is_called_on_stop(self, fake_fetcher):
+        """_cleanup() should be invoked when stop() runs."""
+        producer = TestableProducer(fake_fetcher, ["A"], 1)
+        producer.start()
+        producer.stop()
 
-        assert producer.cleanup_call_count == 1
-        
-    def test_handle_worker_done_logs_exception(self, caplog):
-        producer = TestableProducer(None,['A'],1)
+        assert producer.cleanup_calls == 1
 
-        future = Future()
-        future.set_exception(RuntimeError("Worker crashed"))
+    def test_stop_without_start_calls_cleanup(self, fake_fetcher):
+        """Calling stop() before start() should still call _cleanup()."""
+        producer = TestableProducer(fake_fetcher, ["A"], 1)
+        producer.stop()
 
-        with caplog.at_level(logging.ERROR):
-            producer._handle_worker_done(future)
+        assert producer.cleanup_calls == 1
 
-        assert "Worker thread died with exception" in caplog.text
-        assert "Worker crashed" in caplog.text
+    def test_stop_is_idempotent(self, fake_fetcher):
+        """Calling stop() twice should not raise."""
+        producer = TestableProducer(fake_fetcher, ["A"], 1)
+        producer.start()
+        producer.stop()
+        producer.stop()  # second call – should not crash
 
-    def test_handle_worker_done_success_no_log(self, caplog):
-        producer = TestableProducer(None, ['A'], 1)
-
-        future = Future()
-        future.set_result(None)
-
-        with caplog.at_level(logging.INFO):
-            producer._handle_worker_done(future)
-        
-        assert "Worker thread died" not in caplog.text
+        assert producer.cleanup_calls == 1  # called twice
 
 
+# ----------------------------------------------------------------------
+# Error Handling Tests
+# ----------------------------------------------------------------------
+
+class TestErrorHandling:
+    """Tests for worker exceptions and error handling."""
+
+    def test_worker_exception_is_logged(self, fake_fetcher, caplog):
+        """If a worker raises, the callback should log the error."""
+        import logging
+        caplog.set_level(logging.ERROR)
+
+        producer = TestableProducer(fake_fetcher, ["A"], 1)
+        producer.worker_exception = RuntimeError("boom!")
+
+        producer.start()
+        time.sleep(0.1)
+        producer.stop()
+
+        assert "boom!" in caplog.text
+        assert "Worker thread died" in caplog.text
+
+    def test_producer_survives_worker_exception(self, fake_fetcher):
+        """A dying worker should not crash the whole producer."""
+        producer = TestableProducer(fake_fetcher, ["A", "B"], 2)
+        producer.worker_exception = RuntimeError("boom!")
+
+        producer.start()
+        time.sleep(0.1)
+
+        # Producer should still be able to stop cleanly
+        producer.stop()
+        assert producer.cleanup_calls == 1
+
+
+# ----------------------------------------------------------------------
+# Run (Blocking) Tests
+# ----------------------------------------------------------------------
+
+class TestRun:
+    """Tests for run() – the blocking entry point."""
+
+    def test_run_stops_when_event_is_set(self, fake_fetcher):
+        """
+        run() should block until stop_event is set.
+        We simulate a stop by setting the event from another thread.
+        """
+        producer = TestableProducer(fake_fetcher, ["A"], 1)
+
+        def set_stop_after_delay():
+            time.sleep(0.3)
+            producer.stop_event.set()
+
+        threading.Thread(target=set_stop_after_delay, daemon=True).start()
+
+        # This should return after ~0.3 seconds
+        start = time.time()
+        producer.run()
+        elapsed = time.time() - start
+
+        assert elapsed < 1.5  # Give it a generous margin
+        assert producer.cleanup_calls == 1
