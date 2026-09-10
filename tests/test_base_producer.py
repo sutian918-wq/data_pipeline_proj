@@ -52,9 +52,7 @@ def fake_fetcher():
 
 
 class TestChunkTickers:
-    """
-    Tests for _chunk_tickers.
-    """
+    """Tests for _chunk_tickers."""
 
     def test_even_distribution(self, fake_fetcher):
         """7 tickers, 4 threads -> chunks of size 2,2,2,1"""
@@ -77,7 +75,7 @@ class TestChunkTickers:
         producer = TestableProducer(fake_fetcher, [], 5)
         chunks = producer._chunk_tickers(["A", "B", "C"], 5)
 
-        assert chunks == [["A"], ["B"], ["C"], [], []]
+        assert chunks == [["A"], ["B"], ["C"]]
 
     def test_empty_tickers(self, fake_fetcher):
         """Empty list -> empty list of chunks."""
@@ -105,14 +103,12 @@ class TestChunkTickers:
         producer = TestableProducer(fake_fetcher, [], 4)
         chunks = producer._chunk_tickers(["A"], 4)
 
-        assert chunks == [["A"],[],[],[]]
+        assert chunks == [["A"]]
 
 
 
 class TestLifecycle:
-    """
-    Tests for start / stop / run.
-    """
+    """Tests for start / stop / run."""
 
     def test_start_creates_executor(self, fake_fetcher):
         """start() should create the executor."""
@@ -171,9 +167,6 @@ class TestLifecycle:
         assert producer.cleanup_calls == 1  # called twice
 
 
-# ----------------------------------------------------------------------
-# Error Handling Tests
-# ----------------------------------------------------------------------
 
 class TestErrorHandling:
     """Tests for worker exceptions and error handling."""
@@ -184,19 +177,19 @@ class TestErrorHandling:
         caplog.set_level(logging.ERROR)
 
         producer = TestableProducer(fake_fetcher, ["A"], 1)
-        producer.worker_exception = RuntimeError("boom!")
+        producer.worker_exception = RuntimeError("Worker crashed!")
 
         producer.start()
         time.sleep(0.1)
         producer.stop()
 
-        assert "boom!" in caplog.text
+        assert "Worker crashed!" in caplog.text
         assert "Worker thread died" in caplog.text
 
     def test_producer_survives_worker_exception(self, fake_fetcher):
         """A dying worker should not crash the whole producer."""
         producer = TestableProducer(fake_fetcher, ["A", "B"], 2)
-        producer.worker_exception = RuntimeError("boom!")
+        producer.worker_exception = RuntimeError("Worker crashed!")
 
         producer.start()
         time.sleep(0.1)
@@ -206,17 +199,14 @@ class TestErrorHandling:
         assert producer.cleanup_calls == 1
 
 
-# ----------------------------------------------------------------------
-# Run (Blocking) Tests
-# ----------------------------------------------------------------------
 
 class TestRun:
-    """Tests for run() – the blocking entry point."""
+    """Tests for run()"""
 
     def test_run_stops_when_event_is_set(self, fake_fetcher):
         """
         run() should block until stop_event is set.
-        We simulate a stop by setting the event from another thread.
+        simulate a stop by setting the event from another thread.
         """
         producer = TestableProducer(fake_fetcher, ["A"], 1)
 

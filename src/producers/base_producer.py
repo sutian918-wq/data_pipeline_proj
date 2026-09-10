@@ -6,7 +6,6 @@ from a source and send it to a message broker (e.g., Kafka).
 
 from abc import ABC, abstractmethod
 from src.fetchers import Fetcher
-from src.config import settings
 from threading import Event
 from concurrent.futures import ThreadPoolExecutor, Future
 import logging
@@ -65,10 +64,13 @@ class BaseProducer(ABC):
         chunks = []
         start = 0
         for i in range(num_threads):
-            # First `remainder` chunks get one extra ticker
+            # First {remainder} chunks get one extra ticker
             extra = 1 if i < remainder else 0
             end = start + chunk_size + extra
-            chunks.append(tickers[start:end])
+            if start != end:
+                chunks.append(tickers[start:end])
+            else:
+                break
             start = end
 
         return chunks
