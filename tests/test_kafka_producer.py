@@ -177,7 +177,7 @@ def kafka_broker():
     # It has much lower latency than kafka cuz 
     ## - written in C++ does not suffer from JVM's garbage collector's periodic stop to clean up memory
     ## - uses thread-per-core architechture (Seastar framework) which pins each CPU core to a dedicated thread and uses asynchronous message passing between cores instead of locks. This eliminates context switching and lock contention, making better use of modern multi-core hardware
-    # Kafka written in java
+    # Kafka is written in java which uses JVM to run
     with RedpandaContainer() as kafka:
         yield kafka.get_bootstrap_server()
 
