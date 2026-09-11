@@ -13,13 +13,18 @@ class Settings(BaseSettings):
     topic_name: str = 'market_data'
     consumer_group: str = 'processors'
     producer_threads: int = 4
-    consumer_threads: int = 3
+    consumer_threads: int = 4
 
     # Producer performance
     producer_batch_size: int = 16384
     producer_linger_ms: int = 10
     producer_compression_type: str = 'lz4'
     producer_queue_buffering_max_kbytes: int = 32768
+
+    # Consumer performance
+    consumer_queue_size: int = 1000 # max messages per worker queue, prevent memory blowup
+    consumer_max_poll_records: int = 100 # how many messages to fetch per poll
+    
 
     # PostgreSQL
     postgres_host: str = 'localhost'
