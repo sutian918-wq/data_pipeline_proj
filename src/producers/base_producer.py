@@ -49,7 +49,7 @@ class BaseProducer(ABC):
         """
         Split tickers into roughly equal chunks.
 
-        Example: 10 tickers, 4 threads → chunks of size 3,3,2,2
+        Example: 10 tickers, 4 threads -> chunks of size 3,3,2,2
         """
         if num_threads <= 0:
             return [tickers]
@@ -97,23 +97,6 @@ class BaseProducer(ABC):
         """
         pass
 
-    def _shutdown_executor(self) -> None:
-        """
-        Safely shut down the thread pool executor.
-        """
-        if self.executor is None:
-            logger.debug("No executor to shut down")
-            return
-
-        try:
-            self.executor.shutdown(wait=True)
-            self.executor = None
-            logger.debug("Executor shut down successfully")
-        except Exception as e:
-            logger.error(f"Error shutting down executor: {e}")
-        finally:
-            self.executor = None
-
     def start(self) -> None:
         """
         Start the producer by creating a thread pool and submitting worker tasks.
@@ -151,6 +134,23 @@ class BaseProducer(ABC):
         except Exception as e:
             logger.error(f"Worker thread died with exception: {e}")
             # Optionally, implement a restart mechanism here
+    
+    def _shutdown_executor(self) -> None:
+        """
+        Safely shut down the thread pool executor.
+        """
+        if self.executor is None:
+            logger.debug("No executor to shut down")
+            return
+
+        try:
+            self.executor.shutdown(wait=True)
+            self.executor = None
+            logger.debug("Executor shut down successfully")
+        except Exception as e:
+            logger.error(f"Error shutting down executor: {e}")
+        finally:
+            self.executor = None
 
     def stop(self) -> None:
         if self._cleaned_up:
