@@ -4,7 +4,7 @@ Abstract base class for message processors
 
 from abc import ABC, abstractmethod
 
-class Processor(ABC):
+class BaseProcessor(ABC):
     """
     Abstract base class for message processors.
 
