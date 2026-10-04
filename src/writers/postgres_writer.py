@@ -40,8 +40,8 @@ class PostgresWriter(BaseWriter):
                         price NUMERIC(10,2) NOT NULL,
                         volume INT,
                         event_time DOUBLE PRECISION NOT NULL,
-                        datetime TIMESTAMPZ,
-                        created_at TIMESTAMPZ DEFAULT CURRENT_TIMESTAMP,
+                        datetime TIMESTAMPTZ,
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                         partition_id INT,
                         offset_id BIGINT, 
                         UNIQUE (partition_id, offset_id)
@@ -60,7 +60,7 @@ class PostgresWriter(BaseWriter):
                     INSERT INTO events
                         (ticker, price, volume, event_time, datetime, partition_id, offset_id)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (partition_id, offset_id) DO NOTHING
+                    ON CONFLICT (partition_id, offset_id) DO NOTHING;
                 """, (
                     data["ticker"], 
                     data["price"],
@@ -105,7 +105,7 @@ class PostgresWriter(BaseWriter):
                         INSERT INTO events
                             (ticker, price, volume, timestamp, datetime, partition_id, offset_id)
                         VALUES %s
-                        ON CONFLICT (partition_id, offset_id) DO NOTHING
+                        ON CONFLICT (partition_id, offset_id) DO NOTHING;
                     """,
                     values
                 )
