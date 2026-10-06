@@ -45,7 +45,7 @@ class KafkaProducer(BaseProducer):
                         key=ticker.encode('utf-8')
                     )
                     # controls message rate
-                    time.sleep(settings.simulated_delay_min)
+                    time.sleep(0.00004)
                 # Process delivery callbacks without blocking
                 self.producer.poll(0)
 
@@ -71,7 +71,7 @@ class KafkaProducer(BaseProducer):
             )
         else:
             self.message_count += 1
-            if self.message_count % 100 == 0:
+            if self.message_count % 100000 == 0:
                 logger.info(
                     f"Delivered {self.message_count} messages. "
                     f"Last: {msg.topic()} [{msg.partition()}] @ {msg.offset()}"
