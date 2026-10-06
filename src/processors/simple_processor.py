@@ -20,17 +20,17 @@ class SimpleProcessor(BaseProcessor):
         missing = self.REQUIRED_FIELDS - data.keys()
         if missing:
             logger.warning(f"Message missing fields {missing}: {data}")
-            return False
+            return None
 
         if not isinstance(data['price'], (int, float)):
             logger.warning(f"Invalid price type: {data}. Expected int or float.")
-            return False
+            return None
 
         if not isinstance(data['ticker'], str):
             logger.warning(f"Invalid ticker type: {data}. Expected str.")
-            return False
+            return None
 
-        return True
+        return data
     
 
 

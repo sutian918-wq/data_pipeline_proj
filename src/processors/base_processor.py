@@ -9,12 +9,12 @@ class BaseProcessor(ABC):
     Abstract base class for message processors.
 
     A processor takes a message (as a dict) and performs some
-    transformation, validation, or enrichment. Returns True on
-    success, False on failure.
+    transformation, validation, or enrichment. Returns processed data on
+    success, None on failure.
     """
 
     @abstractmethod
-    def process(self, data: dict) -> bool:
+    def process(self, data: dict) -> dict:
         """
         Process a single message.
 
@@ -22,6 +22,6 @@ class BaseProcessor(ABC):
             data: Parsed message data (dict)
 
         Returns:
-            True if processing succeeded, False otherwise
+            processed data on success, None otherwise
         """
         pass
