@@ -13,11 +13,11 @@ class Settings(BaseSettings):
     topic_name: str = 'market_data'
     consumer_group: str = 'processors'
     producer_threads: int = 4
-    consumer_threads: int = 4
+    consumer_threads: int = 5
 
     # Producer performance
     producer_batch_size: int = 16384
-    producer_linger_ms: int = 10
+    producer_linger_ms: int = 20
     producer_compression_type: str = 'lz4'
     producer_queue_buffering_max_kbytes: int = 32768
 
@@ -32,13 +32,14 @@ class Settings(BaseSettings):
     postgres_db: str = 'data_pipeline'
     postgres_user: str = 'ches'
     postgres_password: str = ''
+    postgres_batch_size: int = 500
 
     # Fetcher
     fetcher_type: str = 'simulated'
     simulated_min_price: int = 100
     simulated_max_price: int = 500
-    simulated_delay_min: float = 0.2
-    simulated_delay_max: float = 1.0
+    simulated_delay_min: float = 0.01
+    simulated_delay_max: float = 0.5
 
     tickers_raw: str = Field(
         default='AAPL,GOOGL,MSFT,TSLA,AMZN,META,NVDA,NFLX,INTC,AMD',

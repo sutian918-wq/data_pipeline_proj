@@ -103,7 +103,7 @@ class PostgresWriter(BaseWriter):
                     cur, 
                     """
                         INSERT INTO events
-                            (ticker, price, volume, timestamp, datetime, partition_id, offset_id)
+                            (ticker, price, volume, event_time, datetime, partition_id, offset_id)
                         VALUES %s
                         ON CONFLICT (partition_id, offset_id) DO NOTHING;
                     """,
